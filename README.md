@@ -1,6 +1,6 @@
 # SecureCorp Zero Trust Lab – Enterprise Access Portal POC
 
-> A reproducible lab that simulates a modern enterprise-grade **Zero Trust** architecture for a fake company called **SecureCorp**.  
+> A  lab that simulates a modern enterprise-grade **Zero Trust** architecture for a  company called **SecureCorp**.  
 > It demonstrates **PKI**, **OIDC SSO**, **MFA**, **secret management**, **mutual TLS**, and **centralized logging** – all automated with **Infrastructure as Code**.
 
 ---
@@ -91,7 +91,9 @@ flowchart LR
 
     RootCA[(Root CA - Offline)] -. signs .-> IntCA[(Intermediate CA - Online)]
     IntCA -->|ACME / Issue certs| Portal
-```
+
 
     IntCA -->|ACME / Issue certs| IdP
     IntCA -->|Issue client certs| Backend
+
+```
