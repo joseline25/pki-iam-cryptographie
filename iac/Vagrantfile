@@ -1,0 +1,88 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# --- Configuration Globale ---
+# OS : Ubuntu 22.04 LTS (Jammy Jellyfish) - Stable et standard entreprise
+BOX_IMAGE = "bento/ubuntu-22.04"
+
+# --- Script de Provisioning (s'exécute au premier démarrage) ---
+# Ce script installe Python (pour Ansible) et configure la résolution de noms (DNS simulé)
+$script_common = <<-SCRIPT
+  echo ">>> Mise à jour des dépôts et installation des outils de base..."
+  apt-get update -q
+  apt-get install -y python3 python3-pip curl vim git net-tools
+
+  echo ">>> Configuration du DNS local (/etc/hosts)..."
+  # On supprime les anciennes entrées pour éviter les doublons si on reprovisionne
+  sed -i '/192.168.56./d' /etc/hosts
+  
+  # On ajoute la cartographie complète du réseau
+  cat >> /etc/hosts <<EOF
+192.168.56.10  srv-sec-core.securecorp.local  srv-sec-core
+192.168.56.20  srv-app-prod.securecorp.local  srv-app-prod
+192.168.56.30  srv-gateway.securecorp.local   srv-gateway
+EOF
+  echo ">>> Configuration réseau terminée."
+SCRIPT
+
+Vagrant.configure("2") do |config|
+  config.vm.box = BOX_IMAGE
+
+  # =================================================================
+  # VM 1: Security Core (Vault, Keycloak, DB)
+  # =================================================================
+  config.vm.define "sec-core" do |sec|
+    sec.vm.hostname = "srv-sec-core"
+    # IP Statique sur réseau privé (Host-only)
+    sec.vm.network "private_network", ip: "192.168.56.10"
+    
+    sec.vm.provider "virtualbox" do |vb|
+      vb.name = "SecureCorp-Sec-Core"
+      # 3 Go de RAM nécessaire pour Java (Keycloak) + Vault
+      vb.memory = 3072
+      vb.cpus = 2
+    end
+    
+    sec.vm.provision "shell", inline: $script_common
+  end
+
+  # =================================================================
+  # VM 2: App Production (Python Backend)
+  # =================================================================
+  config.vm.define "app-prod" do |app|
+    app.vm.hostname = "srv-app-prod"
+    app.vm.network "private_network", ip: "192.168.56.20"
+    
+    app.vm.provider "virtualbox" do |vb|
+      vb.name = "SecureCorp-App-Prod"
+      # 1 Go suffit pour un script Python léger
+      vb.memory = 1024
+      vb.cpus = 1
+    end
+
+    app.vm.provision "shell", inline: $script_common
+  end
+
+  # =================================================================
+  # VM 3: Gateway (Nginx Reverse Proxy)
+  # =================================================================
+  config.vm.define "gateway" do |gw|
+    gw.vm.hostname = "srv-gateway"
+    gw.vm.network "private_network", ip: "192.168.56.30"
+    
+    # Port Forwarding : Pour accéder au site depuis ton vrai navigateur
+    # Tu taperas http://localhost:8080 pour atteindre le port 80 de la gateway
+    gw.vm.network "forwarded_port", guest: 80, host: 8080
+    gw.vm.network "forwarded_port", guest: 443, host: 8443
+
+    gw.vm.provider "virtualbox" do |vb|
+      vb.name = "SecureCorp-Gateway"
+      # Nginx est très léger
+      vb.memory = 1024
+      vb.cpus = 1
+    end
+
+    gw.vm.provision "shell", inline: $script_common
+  end
+
+end
